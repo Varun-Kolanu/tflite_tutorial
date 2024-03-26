@@ -1,9 +1,15 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math';
+import 'dart:typed_data';
+import 'dart:core';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:tflite_v2/tflite_v2.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/services.dart';
+import 'package:image/image.dart' as img;
+import 'package:palette_generator/palette_generator.dart';
 
 void main() => runApp(const MyApp());
 
@@ -29,9 +35,11 @@ class Home extends StatefulWidget {
 class _HomeState extends State<Home> {
   File _image = File('');
   List? _recognitions;
-  late double _imageHeight;
-  late double _imageWidth;
+  double _imageHeight = 0;
+  double _imageWidth = 0;
   bool _busy = false;
+
+  Color? dominantColor;
 
   Future pickImageAndPredict() async {
     var image = await ImagePicker().pickImage(source: ImageSource.camera);
@@ -61,6 +69,8 @@ class _HomeState extends State<Home> {
       _recognitions = recognitions;
       _busy = false;
     });
+
+    print(await _calculateDominantColor());
   }
 
   @override
@@ -124,6 +134,48 @@ class _HomeState extends State<Home> {
         ),
       );
     }).toList();
+  }
+
+  int _colorDistance(Color a, Color b) {
+    return (a.red - b.red) * (a.red - b.red) +
+        (a.green - b.green) * (a.green - b.green) +
+        (a.blue - b.blue) * (a.blue - b.blue);
+  }
+
+  Future<String> _calculateDominantColor() async {
+    Uint8List bytes = await _image.readAsBytes();
+    ImageProvider<Object> imageProvider =
+        MemoryImage(Uint8List.fromList(bytes));
+    PaletteGenerator paletteGenerator =
+        await PaletteGenerator.fromImageProvider(
+      imageProvider,
+    );
+    Color? domColor = paletteGenerator.dominantColor?.color;
+
+    Map<String, Color> colorMap = {
+      'White': Colors.white,
+      'Black': Colors.black,
+      'Blue': Colors.blue,
+      'Red': Colors.red,
+      'Yellow': Colors.yellow,
+      'Grey': Colors.grey,
+      'Orange': Colors.orange,
+      'Purple': Colors.purple,
+      'Green': Colors.green,
+      'Brown': Colors.brown,
+      'Pink': Colors.pink,
+      'Cyan': Colors.cyan
+    };
+    int minDistance = 200000;
+    String nearestColor = '';
+    for (var entry in colorMap.entries) {
+      int colorDist = _colorDistance(domColor!, entry.value);
+      if (colorDist < minDistance) {
+        minDistance = colorDist;
+        nearestColor = entry.key;
+      }
+    }
+    return nearestColor;
   }
 
   @override
